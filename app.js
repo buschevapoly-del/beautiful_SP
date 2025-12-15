@@ -1,279 +1,231 @@
-// app.js (исправленная версия с гарантированным запуском обучения)
+// app.js (упрощенная версия)
 import { DataLoader } from './data-loader.js';
 import { GRUModel } from './gru.js';
 
 class StockPredictorApp {
     constructor() {
-        console.log('🚀 Initializing Stock Predictor App');
-        
+        console.log('Starting app...');
         this.dataLoader = new DataLoader();
         this.model = new GRUModel();
         this.charts = {};
         this.isTraining = false;
         this.predictions = null;
-        this.insights = null;
         
         this.initUI();
         this.setupEventListeners();
-        
-        // Автоматически загружаем данные при запуске
-        this.autoLoadData();
+        this.loadData();
     }
 
     initUI() {
-        console.log('🖥️ Initializing UI');
-        document.getElementById('dataStatus').textContent = '⏳ Loading S&P 500 data...';
-        document.getElementById('trainingStatus').textContent = '🟡 Waiting for data...';
-        
-        // Инициализируем прогресс бар
-        const progressBar = document.getElementById('progressBar');
-        progressBar.style.display = 'none';
+        document.getElementById('dataStatus').textContent = 'Loading data...';
+        document.getElementById('trainingStatus').textContent = 'Ready';
+        document.getElementById('progressBar').style.display = 'none';
     }
 
     setupEventListeners() {
-        console.log('🔗 Setting up event listeners');
-        
-        document.getElementById('loadDataBtn').addEventListener('click', () => {
-            console.log('📥 Load Data button clicked');
-            this.loadData();
-        });
-
-        document.getElementById('viewDataBtn').addEventListener('click', () => {
-            console.log('👁️ View Data button clicked');
-            this.displayInsights();
-        });
-
-        document.getElementById('trainBtn').addEventListener('click', async () => {
-            console.log('🎯 Train Model button clicked');
-            await this.trainModel();
-        });
-
-        document.getElementById('predictBtn').addEventListener('click', () => {
-            console.log('🔮 Predict button clicked');
-            this.makePredictions();
-        });
-    }
-
-    async autoLoadData() {
-        console.log('🌐 Auto-loading data from GitHub...');
-        
-        try {
-            this.updateStatus('dataStatus', '🌐 Downloading S&P 500 data...', 'info');
-            
-            // Загружаем данные
-            await this.dataLoader.loadCSVFromGitHub();
-            
-            // Подготавливаем данные для обучения
-            this.dataLoader.prepareData();
-            
-            // Получаем аналитику
-            this.insights = this.dataLoader.getInsights();
-            
-            // Активируем кнопки
-            document.getElementById('viewDataBtn').disabled = false;
-            document.getElementById('trainBtn').disabled = false;
-            document.getElementById('loadDataBtn').innerHTML = '🔄 Reload Data';
-            
-            // Показываем аналитику
-            this.displayInsights();
-            
-            // Создаем графики
-            this.createCombinedChart();
-            
-            this.updateStatus('dataStatus', '✅ Data loaded successfully!', 'success');
-            this.updateStatus('trainingStatus', '🟢 Ready for training', 'info');
-            
-            console.log('✅ Data loaded:', {
-                samples: this.dataLoader.data?.length || 0,
-                returns: this.dataLoader.returns?.length || 0
-            });
-            
-        } catch (error) {
-            console.error('❌ Auto-load failed:', error);
-            this.updateStatus('dataStatus', `❌ Failed to load data: ${error.message}`, 'error');
-        }
+        document.getElementById('loadDataBtn').addEventListener('click', () => this.loadData());
+        document.getElementById('viewDataBtn').addEventListener('click', () => this.viewData());
+        document.getElementById('trainBtn').addEventListener('click', () => this.trainModel());
+        document.getElementById('predictBtn').addEventListener('click', () => this.makePredictions());
     }
 
     async loadData() {
         try {
-            this.updateStatus('dataStatus', '🔄 Reloading data...', 'info');
+            this.updateStatus('dataStatus', 'Loading data...', 'info');
             
-            // Очищаем предыдущие данные
-            this.dataLoader.dispose();
-            this.model.dispose();
-            this.predictions = null;
-            
-            // Очищаем графики
-            Object.keys(this.charts).forEach(chart => {
-                if (this.charts[chart]) {
-                    this.charts[chart].destroy();
-                    this.charts[chart] = null;
-                }
-            });
-            
-            // Загружаем данные заново
             await this.dataLoader.loadCSVFromGitHub();
             this.dataLoader.prepareData();
             
-            this.insights = this.dataLoader.getInsights();
-            this.displayInsights();
-            this.createCombinedChart();
+            document.getElementById('viewDataBtn').disabled = false;
+            document.getElementById('trainBtn').disabled = false;
+            document.getElementById('loadDataBtn').innerHTML = '🔄 Reload';
             
-            this.updateStatus('dataStatus', '✅ Data reloaded!', 'success');
+            // ⚠️ ПРОВЕРКА: Метод getInsights существует?
+            console.log('Checking getInsights method:', typeof this.dataLoader.getInsights);
+            console.log('Is function?', typeof this.dataLoader.getInsights === 'function');
+            
+            // Пробуем получить insights
+            const insights = this.dataLoader.getInsights();
+            console.log('Insights received:', insights);
+            
+            this.updateStatus('dataStatus', '✅ Data loaded!', 'success');
             
         } catch (error) {
-            this.updateStatus('dataStatus', `❌ Error: ${error.message}`, 'error');
+            console.error('Load data error:', error);
+            this.updateStatus('dataStatus', `❌ ${error.message}`, 'error');
+        }
+    }
+
+    viewData() {
+        try {
+            // ⚠️ Используем try-catch для безопасности
+            const insights = this.dataLoader.getInsights ? 
+                this.dataLoader.getInsights() : 
+                { basic: { totalDays: 0, dateRange: 'N/A' } };
+            
+            console.log('Viewing insights:', insights);
+            
+            const metricsContainer = document.getElementById('metricsContainer');
+            metricsContainer.innerHTML = '';
+            metricsContainer.style.display = 'grid';
+            
+            const metrics = [
+                { label: 'Total Days', value: insights.basic.totalDays },
+                { label: 'Date Range', value: insights.basic.dateRange },
+                { label: 'First Price', value: `$${insights.basic.firstPrice}` },
+                { label: 'Last Price', value: `$${insights.basic.lastPrice}` },
+                { label: 'Total Return', value: insights.basic.totalReturn },
+                { label: 'Max Drawdown', value: insights.basic.maxDrawdown },
+                { label: 'Mean Return', value: insights.returns.meanDailyReturn },
+                { label: 'Annual Volatility', value: insights.returns.annualizedVolatility },
+                { label: 'Current Trend', value: insights.trends.currentTrend },
+                { label: 'SMA 50', value: `$${insights.trends.sma50}` }
+            ];
+            
+            metrics.forEach(metric => {
+                const card = document.createElement('div');
+                card.className = 'metric-card';
+                card.innerHTML = `
+                    <div class="metric-value">${metric.value}</div>
+                    <div class="metric-label">${metric.label}</div>
+                `;
+                metricsContainer.appendChild(card);
+            });
+            
+        } catch (error) {
+            console.error('View data error:', error);
+            this.updateStatus('dataStatus', 'Error showing data', 'error');
         }
     }
 
     async trainModel() {
-        console.log('🎯 STARTING MODEL TRAINING');
-        
-        if (this.isTraining) {
-            console.log('⚠️ Already training, skipping...');
-            return;
-        }
+        if (this.isTraining) return;
 
         try {
             this.isTraining = true;
+            const epochs = parseInt(document.getElementById('epochs').value) || 12;
             
-            // Получаем количество эпох
-            const epochsInput = document.getElementById('epochs');
-            const epochs = parseInt(epochsInput.value) || 12;
+            this.updateStatus('trainingStatus', `Starting training...`, 'info');
             
-            console.log(`Training configuration: ${epochs} epochs`);
-            
-            // Обновляем статус
-            this.updateStatus('trainingStatus', `🚀 Starting training (${epochs} epochs)...`, 'info');
-            
-            // Показываем прогресс бар
             const progressBar = document.getElementById('progressBar');
             const progressFill = document.getElementById('progressFill');
             progressBar.style.display = 'block';
             progressFill.style.width = '0%';
             
-            // Проверяем что данные загружены
             if (!this.dataLoader.X_train || !this.dataLoader.y_train) {
-                throw new Error('Training data not loaded. Please load data first.');
+                throw new Error('Training data not loaded');
             }
-            
-            console.log('Training data shapes:', {
-                X_train: this.dataLoader.X_train.shape,
-                y_train: this.dataLoader.y_train.shape
-            });
-            
-            // ЗАПУСКАЕМ ОБУЧЕНИЕ
-            console.log('Calling model.train()...');
-            
-            const startTime = Date.now();
             
             await this.model.train(
                 this.dataLoader.X_train,
                 this.dataLoader.y_train,
-                epochs, // Количество эпох
-                {       // Callbacks
+                epochs,
+                {
                     onEpochEnd: (epoch, logs) => {
                         const currentEpoch = epoch + 1;
                         const progress = (currentEpoch / epochs) * 100;
-                        
-                        // Обновляем прогресс бар
                         progressFill.style.width = `${progress}%`;
                         
-                        // Обновляем статус
-                        const elapsed = logs.elapsed?.toFixed(1) || '0';
-                        const loss = logs.loss?.toFixed(6) || '0.000000';
-                        
                         this.updateStatus('trainingStatus', 
-                            `⚡ Epoch ${currentEpoch}/${epochs} | Loss: ${loss} | ${elapsed}s`,
+                            `Epoch ${currentEpoch}/${epochs} | Loss: ${logs.loss?.toFixed(6) || '0.000000'}`,
                             'info'
                         );
-                        
-                        console.log(`Epoch ${currentEpoch}/${epochs}: loss=${loss}`);
                     },
-                    onTrainEnd: (totalTime) => {
-                        const trainingTime = totalTime || ((Date.now() - startTime) / 1000).toFixed(1);
-                        
+                    onTrainEnd: () => {
                         this.isTraining = false;
                         progressBar.style.display = 'none';
-                        
-                        // Активируем кнопку предсказаний
                         document.getElementById('predictBtn').disabled = false;
                         
-                        // Оцениваем модель
-                        const metrics = this.model.evaluate(this.dataLoader.X_test, this.dataLoader.y_test);
-                        
-                        // Обновляем статус
                         this.updateStatus('trainingStatus', 
-                            `✅ Training completed in ${trainingTime}s! RMSE: ${(metrics.rmse * 100).toFixed(3)}%`,
+                            '✅ Training completed!',
                             'success'
                         );
-                        
-                        console.log(`✅ Training completed in ${trainingTime}s, RMSE: ${metrics.rmse}`);
-                        
-                        // Показываем метрики
-                        this.showTrainingMetrics(metrics);
                     }
                 }
             );
             
         } catch (error) {
-            console.error('❌ Training failed:', error);
-            
             this.isTraining = false;
             document.getElementById('progressBar').style.display = 'none';
             document.getElementById('predictBtn').disabled = false;
             
             this.updateStatus('trainingStatus', 
-                `⚠️ Training issue: ${error.message}`,
+                '⚠️ Training issue',
                 'warning'
             );
         }
     }
 
-    showTrainingMetrics(metrics) {
-        const metricsContainer = document.getElementById('metricsContainer');
-        
-        const trainingMetrics = [
-            { label: '🎯 Test RMSE', value: metrics.rmse.toFixed(6) },
-            { label: '📊 Test MSE', value: metrics.mse.toFixed(6) },
-            { label: '⚡ Training Status', value: 'Completed' },
-            { label: '📈 Return Error', value: (metrics.rmse * 100).toFixed(4) + '%' }
-        ];
-        
-        trainingMetrics.forEach(metric => {
-            const card = document.createElement('div');
-            card.className = 'insight-card fade-in';
-            card.innerHTML = `
-                <div class="insight-value">${metric.value}</div>
-                <div class="insight-label">${metric.label}</div>
-            `;
-            metricsContainer.appendChild(card);
-        });
+    async makePredictions() {
+        try {
+            this.updateStatus('trainingStatus', 'Generating predictions...', 'info');
+            
+            const normalizedData = this.dataLoader.normalizedData;
+            const windowSize = this.model.windowSize;
+            
+            if (!normalizedData || normalizedData.length < windowSize) {
+                throw new Error('Not enough data');
+            }
+            
+            const lastWindow = normalizedData.slice(-windowSize);
+            const lastWindowFormatted = lastWindow.map(v => [v]);
+            const inputTensor = tf.tensor3d([lastWindowFormatted], [1, windowSize, 1]);
+            
+            const normalizedPredictions = await this.model.predict(inputTensor);
+            inputTensor.dispose();
+            
+            this.predictions = normalizedPredictions[0].map(p => 
+                this.dataLoader.denormalize(p)
+            );
+            
+            this.displayPredictions();
+            
+            this.updateStatus('trainingStatus', '✅ Predictions generated!', 'success');
+            
+        } catch (error) {
+            this.updateStatus('trainingStatus', `⚠️ ${error.message}`, 'warning');
+        }
     }
 
-    // ... остальные методы остаются такими же ...
+    displayPredictions() {
+        const container = document.getElementById('predictionsContainer');
+        container.innerHTML = '';
+        
+        const lastPrice = this.dataLoader.data[this.dataLoader.data.length - 1].price;
+        let currentPrice = lastPrice;
+        
+        this.predictions.forEach((pred, idx) => {
+            const day = idx + 1;
+            const returnPct = pred * 100;
+            const priceChange = currentPrice * pred;
+            const newPrice = currentPrice + priceChange;
+            
+            const card = document.createElement('div');
+            card.className = 'prediction-card';
+            card.innerHTML = `
+                <div class="prediction-day">Day +${day}</div>
+                <div class="prediction-value ${returnPct >= 0 ? 'positive' : 'negative'}">
+                    ${returnPct.toFixed(3)}%
+                </div>
+                <div class="prediction-details">
+                    Price: $${newPrice.toFixed(2)}
+                </div>
+            `;
+            
+            container.appendChild(card);
+            currentPrice = newPrice;
+        });
+    }
 
     updateStatus(elementId, message, type = 'info') {
         const element = document.getElementById(elementId);
         if (element) {
             element.textContent = message;
             element.className = `status ${type}`;
-            
-            // Обновляем кнопку загрузки
-            if (elementId === 'loadDataBtn') {
-                const btn = document.getElementById('loadDataBtn');
-                if (message.includes('Downloading') || message.includes('Loading')) {
-                    btn.innerHTML = '<span class="loader"></span> Loading...';
-                } else if (message.includes('✅')) {
-                    btn.innerHTML = '🔄 Reload Data';
-                }
-            }
         }
     }
 }
 
-// Запускаем приложение
 document.addEventListener('DOMContentLoaded', () => {
-    console.log('📄 DOM loaded, starting application...');
     window.app = new StockPredictorApp();
 });
