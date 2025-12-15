@@ -1,4 +1,4 @@
-// data-loader.js (окончательная исправленная версия)
+// data-loader.js
 class DataLoader {
     constructor() {
         this.data = null;
@@ -19,56 +19,42 @@ class DataLoader {
 
     async loadCSVFromGitHub() {
         try {
-            console.log('📥 Loading data from GitHub...');
-            
+            console.log('Loading data from GitHub...');
             const response = await fetch(this.dataUrl);
-            if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
-            }
+            if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
             
             const content = await response.text();
-            console.log('✅ Data loaded, parsing...');
             this.parseCSV(content);
-            
-            console.log(`✅ Parsed ${this.data?.length || 0} records`);
             return this.data;
         } catch (error) {
-            console.error('❌ Failed to load data:', error);
+            console.error('Failed to load data:', error);
             throw error;
         }
     }
 
     parseCSV(content) {
-        console.log('Parsing CSV content...');
         const lines = content.trim().split('\n');
         const parsedData = [];
         this.dateLabels = [];
         this.returns = [];
 
-        // Пропускаем заголовок
         for (let i = 1; i < lines.length; i++) {
             const line = lines[i].trim();
             if (!line) continue;
 
             const parts = line.split(';');
-            
             if (parts.length >= 2) {
                 const dateStr = parts[0].trim();
                 const price = parseFloat(parts[1].trim());
                 
                 if (!isNaN(price) && price > 0) {
-                    parsedData.push({ 
-                        date: dateStr, 
-                        price: price
-                    });
+                    parsedData.push({ date: dateStr, price: price });
                     this.dateLabels.push(dateStr);
                 }
             }
         }
 
-        console.log(`Parsed ${parsedData.length} valid records`);
-
-        // Сортируем по дате
+        // Sort by date
         parsedData.sort((a, b) => {
             const dateA = this.parseDate(a.date);
             const dateB = this.parseDate(b.date);
@@ -77,34 +63,26 @@ class DataLoader {
         
         this.data = parsedData;
         
-        // Рассчитываем доходности
+        // Calculate returns
         this.calculateReturns();
         
-        // Рассчитываем аналитику
+        // Calculate insights
         this.calculateInsights();
-        
-        console.log('✅ CSV parsing completed');
     }
 
     parseDate(dateStr) {
-        // Формат DD.MM.YYYY
-        try {
-            const parts = dateStr.split('.');
-            if (parts.length === 3) {
-                const day = parseInt(parts[0], 10);
-                const month = parseInt(parts[1], 10) - 1;
-                const year = parseInt(parts[2], 10);
-                return new Date(year, month, day);
-            }
-        } catch (e) {
-            console.warn('Date parsing error:', e);
+        const parts = dateStr.split('.');
+        if (parts.length === 3) {
+            const day = parseInt(parts[0], 10);
+            const month = parseInt(parts[1], 10) - 1;
+            const year = parseInt(parts[2], 10);
+            return new Date(year, month, day);
         }
         return new Date(dateStr);
     }
 
     calculateReturns() {
         if (!this.data || this.data.length < 2) {
-            console.warn('Not enough data to calculate returns');
             this.returns = [];
             return;
         }
@@ -114,13 +92,10 @@ class DataLoader {
             const ret = (this.data[i].price - this.data[i-1].price) / this.data[i-1].price;
             this.returns.push(ret);
         }
-        
-        console.log(`Calculated ${this.returns.length} returns`);
     }
 
     calculateInsights() {
         if (!this.data || this.data.length === 0 || !this.returns || this.returns.length === 0) {
-            console.warn('Cannot calculate insights: no data');
             this.insights = this.createDefaultInsights();
             return;
         }
@@ -128,25 +103,21 @@ class DataLoader {
         const prices = this.data.map(d => d.price);
         const returns = this.returns;
         
-        // 1. Basic Statistics
         const lastPrice = prices[prices.length - 1];
         const firstPrice = prices[0];
         const totalReturn = (lastPrice - firstPrice) / firstPrice;
         
-        // 2. Daily Returns Statistics
         const meanReturn = returns.reduce((a, b) => a + b, 0) / returns.length;
         const variance = returns.reduce((sq, n) => sq + Math.pow(n - meanReturn, 2), 0) / returns.length;
         const stdReturn = Math.sqrt(variance);
         const annualizedVolatility = stdReturn * Math.sqrt(252);
         
-        // 3. Simple Moving Averages
         const sma50 = this.calculateSMA(prices, 50);
         const sma200 = this.calculateSMA(prices, 200);
         const currentTrend = sma50.length > 0 && sma200.length > 0 && 
                             sma50[sma50.length - 1] > sma200[sma200.length - 1] ? 
                             'Bullish' : 'Bearish';
         
-        // 4. Maximum Drawdown
         let maxDrawdown = 0;
         let peak = prices[0];
         for (let i = 1; i < prices.length; i++) {
@@ -155,7 +126,6 @@ class DataLoader {
             if (drawdown > maxDrawdown) maxDrawdown = drawdown;
         }
         
-        // 5. Rolling Volatility (20-day)
         const rollingVolatilities = [];
         const window = Math.min(20, returns.length);
         for (let i = window; i <= returns.length; i++) {
@@ -184,20 +154,13 @@ class DataLoader {
             trends: {
                 currentTrend: currentTrend,
                 sma50: sma50.length > 0 ? sma50[sma50.length - 1].toFixed(2) : 'N/A',
-                sma200: sma200.length > 0 ? sma200[sma200.length - 1].toFixed(2) : 'N/A',
-                aboveSMA200: lastPrice > (sma200[sma200.length - 1] || 0) ? 'Yes' : 'No'
+                sma200: sma200.length > 0 ? sma200[sma200.length - 1].toFixed(2) : 'N/A'
             },
             volatility: {
                 currentRollingVol: rollingVolatilities.length > 0 ? (rollingVolatilities[rollingVolatilities.length - 1] * 100).toFixed(2) + '%' : 'N/A',
                 avgRollingVol: rollingVolatilities.length > 0 ? (rollingVolatilities.reduce((a, b) => a + b, 0) / rollingVolatilities.length * 100).toFixed(2) + '%' : 'N/A'
-            },
-            // Для графиков
-            sma50: sma50,
-            sma200: sma200,
-            rollingVolatilities: rollingVolatilities
+            }
         };
-        
-        console.log('✅ Insights calculated');
     }
     
     calculateSMA(prices, period) {
@@ -231,30 +194,24 @@ class DataLoader {
             trends: {
                 currentTrend: 'N/A',
                 sma50: '0.00',
-                sma200: '0.00',
-                aboveSMA200: 'No'
+                sma200: '0.00'
             },
             volatility: {
                 currentRollingVol: '0.00%',
                 avgRollingVol: '0.00%'
-            },
-            sma50: [],
-            sma200: [],
-            rollingVolatilities: []
+            }
         };
     }
 
-    getInsights() {
-        if (!this.insights) {
-            console.warn('Insights not calculated yet, creating default');
-            this.insights = this.createDefaultInsights();
-        }
-        return this.insights;
+    // ⚠️ ВАЖНО: Метод getInsights должен быть определен КАК ФУНКЦИЯ
+    getInsights = () => {
+        console.log('getInsights called, returning:', this.insights);
+        return this.insights || this.createDefaultInsights();
     }
 
     prepareData(windowSize = 60, predictionHorizon = 5, testSplit = 0.2) {
         if (!this.returns || this.returns.length === 0) {
-            throw new Error('No returns data available. Load CSV first.');
+            throw new Error('No returns data available');
         }
 
         const totalSamples = this.returns.length - windowSize - predictionHorizon + 1;
@@ -263,10 +220,8 @@ class DataLoader {
             throw new Error('Not enough data for training');
         }
 
-        // Нормализуем доходности
         this.normalizeReturns();
 
-        // Создаем последовательности
         const sequences = [];
         const targets = [];
 
@@ -275,17 +230,13 @@ class DataLoader {
             targets.push(this.normalizedData.slice(i + windowSize, i + windowSize + predictionHorizon));
         }
 
-        // Разделяем на тренировочные и тестовые данные
         const splitIdx = Math.floor(sequences.length * (1 - testSplit));
         
-        // Создаем тензоры
         this.X_train = tf.tensor3d(sequences.slice(0, splitIdx), [splitIdx, windowSize, 1]);
         this.y_train = tf.tensor2d(targets.slice(0, splitIdx), [splitIdx, predictionHorizon]);
         this.X_test = tf.tensor3d(sequences.slice(splitIdx), [sequences.length - splitIdx, windowSize, 1]);
         this.y_test = tf.tensor2d(targets.slice(splitIdx), [sequences.length - splitIdx, predictionHorizon]);
 
-        console.log(`✅ Data prepared: ${sequences.length} samples (${splitIdx} train, ${sequences.length - splitIdx} test)`);
-        
         return this;
     }
 
@@ -320,15 +271,8 @@ class DataLoader {
         };
     }
 
-    getDataSummary() {
-        const insights = this.getInsights();
-        return insights?.basic || null;
-    }
-
     dispose() {
-        // Освобождаем тензоры TensorFlow.js
-        const tensors = [this.X_train, this.y_train, this.X_test, this.y_test];
-        tensors.forEach(tensor => {
+        [this.X_train, this.y_train, this.X_test, this.y_test].forEach(tensor => {
             if (tensor) tensor.dispose();
         });
         
@@ -338,9 +282,8 @@ class DataLoader {
         this.y_test = null;
         this.normalizedData = null;
         this.insights = null;
-        
-        console.log('✅ DataLoader disposed');
     }
 }
 
+// ⚠️ ВАЖНО: Экспортируем класс
 export { DataLoader };
