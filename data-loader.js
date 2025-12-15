@@ -1,4 +1,4 @@
-// data-loader.js (исправленная версия с методом getInsights)
+// data-loader.js (окончательная исправленная версия)
 class DataLoader {
     constructor() {
         this.data = null;
@@ -34,7 +34,7 @@ class DataLoader {
             return this.data;
         } catch (error) {
             console.error('❌ Failed to load data:', error);
-            throw new Error(`Failed to load data: ${error.message}`);
+            throw error;
         }
     }
 
@@ -103,7 +103,11 @@ class DataLoader {
     }
 
     calculateReturns() {
-        if (!this.data || this.data.length < 2) return;
+        if (!this.data || this.data.length < 2) {
+            console.warn('Not enough data to calculate returns');
+            this.returns = [];
+            return;
+        }
         
         this.returns = [];
         for (let i = 1; i < this.data.length; i++) {
@@ -117,7 +121,7 @@ class DataLoader {
     calculateInsights() {
         if (!this.data || this.data.length === 0 || !this.returns || this.returns.length === 0) {
             console.warn('Cannot calculate insights: no data');
-            this.insights = this.getDefaultInsights();
+            this.insights = this.createDefaultInsights();
             return;
         }
         
@@ -186,7 +190,11 @@ class DataLoader {
             volatility: {
                 currentRollingVol: rollingVolatilities.length > 0 ? (rollingVolatilities[rollingVolatilities.length - 1] * 100).toFixed(2) + '%' : 'N/A',
                 avgRollingVol: rollingVolatilities.length > 0 ? (rollingVolatilities.reduce((a, b) => a + b, 0) / rollingVolatilities.length * 100).toFixed(2) + '%' : 'N/A'
-            }
+            },
+            // Для графиков
+            sma50: sma50,
+            sma200: sma200,
+            rollingVolatilities: rollingVolatilities
         };
         
         console.log('✅ Insights calculated');
@@ -203,7 +211,7 @@ class DataLoader {
         return sma;
     }
 
-    getDefaultInsights() {
+    createDefaultInsights() {
         return {
             basic: {
                 totalDays: 0,
@@ -229,8 +237,19 @@ class DataLoader {
             volatility: {
                 currentRollingVol: '0.00%',
                 avgRollingVol: '0.00%'
-            }
+            },
+            sma50: [],
+            sma200: [],
+            rollingVolatilities: []
         };
+    }
+
+    getInsights() {
+        if (!this.insights) {
+            console.warn('Insights not calculated yet, creating default');
+            this.insights = this.createDefaultInsights();
+        }
+        return this.insights;
     }
 
     prepareData(windowSize = 60, predictionHorizon = 5, testSplit = 0.2) {
@@ -266,8 +285,6 @@ class DataLoader {
         this.y_test = tf.tensor2d(targets.slice(splitIdx), [sequences.length - splitIdx, predictionHorizon]);
 
         console.log(`✅ Data prepared: ${sequences.length} samples (${splitIdx} train, ${sequences.length - splitIdx} test)`);
-        console.log(`X_train shape: ${this.X_train.shape}`);
-        console.log(`y_train shape: ${this.y_train.shape}`);
         
         return this;
     }
@@ -303,12 +320,9 @@ class DataLoader {
         };
     }
 
-    getInsights() {
-        return this.insights || this.getDefaultInsights();
-    }
-
     getDataSummary() {
-        return this.insights?.basic || null;
+        const insights = this.getInsights();
+        return insights?.basic || null;
     }
 
     dispose() {
